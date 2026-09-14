@@ -1,0 +1,101 @@
+{
+  "n_examples": 20,
+  "intent_accuracy": 1.0,
+  "intent_macro_f1": 0.25,
+  "escalation_accuracy": 1.0,
+  "escalation_recall_on_should_escalate": 1.0,
+  "over_escalation_rate_on_should_auto_handle": NaN,
+  "mean_lexical_grounding_to_reference_reply": 0.5718,
+  "confusion_matrix_labels": [
+    "order_status_delay",
+    "damaged_or_wrong_item",
+    "refund_or_return",
+    "billing_charge_dispute",
+    "account_access_issue",
+    "cancellation_request",
+    "product_or_service_question",
+    "other_complaint"
+  ],
+  "confusion_matrix": [
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      4,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      16,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  ]
+}
