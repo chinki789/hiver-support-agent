@@ -1,14 +1,27 @@
 """
 Local web dashboard (Streamlit) for the AmazonHelp support agent project.
 
-This is NOT part of the Hiver assignment deliverables -- the assignment
-explicitly wants a CLI-reproducible pipeline (see README.md / scripts/run_all.sh
-for that). This file is a convenience/demo layer on top of the same
-functions and result files the CLI pipeline already uses.
+This is a convenience/demo layer on top of the same functions and result
+files the CLI pipeline already uses (see README.md for the actual graded
+CLI reproduction steps).
 
 Run with:
     streamlit run app.py
+
+NOTE ON THE LOGIN GATE: this is a lightweight, LOCAL-ONLY session gate for a
+personal single-user demo -- it stores nothing beyond the current browser
+session (no password, no database, no real account system). It exists so
+the dashboard "feels" like a personal tool rather than a public page, not to
+provide real authentication. Do not reuse this pattern for anything with
+real user data.
+
+NOTE ON ESCALATION CONTACT DETAILS: the "assigned specialist" name and
+contact info shown for escalated cases are FICTIONAL placeholders generated
+locally for demo realism (deterministic from the message so it's stable
+across reruns) -- there is no real human on the other end. This mirrors how
+the sample historical replies use placeholder sign-offs like ^KL/^MJ/^AR.
 """
+import hashlib
 import json
 import os
 import sys
@@ -30,6 +43,23 @@ GOLDEN_PATH = "data/golden_eval_set.csv"
 DATA_PATH = "data/raw/sample_twcs.csv"
 BRAND = "AmazonHelp"
 
+# Fictional escalation-team roster used only to make escalated cases feel
+# concrete in the demo UI (see module docstring).
+_SPECIALISTS = [
+    ("Karan Lal", "karan.lal@support-escalations.example", "+1-555-0142"),
+    ("Meera Joshi", "meera.joshi@support-escalations.example", "+1-555-0177"),
+    ("Aditya Rao", "aditya.rao@support-escalations.example", "+1-555-0163"),
+    ("Priya Nair", "priya.nair@support-escalations.example", "+1-555-0198"),
+]
+
+
+def assign_specialist(customer_text: str):
+    idx = int(hashlib.sha256(customer_text.encode()).hexdigest(), 16) % len(_SPECIALISTS)
+    name, email, phone = _SPECIALISTS[idx]
+    ticket_id = "ESC-" + hashlib.sha256(customer_text.encode()).hexdigest()[:8].upper()
+    return {"name": name, "email": email, "phone": phone, "ticket_id": ticket_id}
+
+
 st.set_page_config(
     page_title="AmazonHelp AI Agent",
     page_icon="🤖",
@@ -43,16 +73,20 @@ st.markdown("""
 
 html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 
+.stApp {
+    background: linear-gradient(180deg, #0f1c2e 0%, #14243b 100%);
+}
+
 .hero {
-    background: linear-gradient(120deg, #232f3e 0%, #37475a 60%, #ff9900 160%);
+    background: linear-gradient(120deg, #0d7377 0%, #14a098 60%, #32e0c4 160%);
     padding: 2.2rem 2rem;
     border-radius: 18px;
     color: white;
     margin-bottom: 1.6rem;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
 }
 .hero h1 { margin: 0; font-size: 2.1rem; font-weight: 800; }
-.hero p { margin: 0.4rem 0 0 0; opacity: 0.9; font-size: 1.02rem; }
+.hero p { margin: 0.4rem 0 0 0; opacity: 0.92; font-size: 1.02rem; }
 
 .pill {
     display: inline-block;
@@ -67,6 +101,15 @@ html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
 .pill-blue  { background: #dbe9ff; color: #16408a; }
 .pill-gray  { background: #eaeaea; color: #444; }
 
+.escalation-card {
+    background: #fff7ed;
+    border: 1px solid #fcd9a0;
+    border-radius: 14px;
+    padding: 1rem 1.2rem;
+    margin-top: 0.6rem;
+}
+.escalation-card h4 { margin: 0 0 0.5rem 0; color: #9a5b00; }
+
 div[data-testid="stMetric"] {
     background: #ffffff;
     border: 1px solid #eee;
@@ -76,9 +119,12 @@ div[data-testid="stMetric"] {
 }
 
 section[data-testid="stSidebar"] {
-    background: #16202b;
+    background: #0b1523;
 }
 section[data-testid="stSidebar"] * { color: #e8edf2 !important; }
+
+h1, h2, h3, h4, .stMarkdown p, label, .stCaption { color: #e8edf2; }
+div[data-testid="stMetric"] label, div[data-testid="stMetric"] div { color: #16202b !important; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,6 +144,51 @@ def pill(text, kind="gray"):
     return f'<span class="pill pill-{kind}">{text}</span>'
 
 
+def render_escalation_card(specialist: dict, reasons: list):
+    reasons_html = "".join(f"<li>{r}</li>" for r in reasons)
+    st.markdown(f"""
+    <div class="escalation-card">
+      <h4>🚨 Escalated to a human specialist</h4>
+      <p><b>Ticket:</b> {specialist['ticket_id']} &nbsp;|&nbsp;
+         <b>Assigned to:</b> {specialist['name']}</p>
+      <p><b>Contact:</b> {specialist['email']} &nbsp;|&nbsp; {specialist['phone']}</p>
+      <p><b>Why this was escalated:</b></p>
+      <ul>{reasons_html}</ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+
+if not st.session_state.logged_in:
+    st.markdown("""
+    <div class="hero">
+      <h1>🤖 AmazonHelp AI Agent</h1>
+      <p>Sign in to open your personal dashboard.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    left, mid, right = st.columns([1, 1.2, 1])
+    with mid:
+        st.markdown("#### Sign in")
+        method = st.radio("Login with", ["Email", "Mobile number"], horizontal=True)
+        if method == "Email":
+            identifier = st.text_input("Email address", placeholder="you@example.com")
+        else:
+            identifier = st.text_input("Mobile number", placeholder="+1 555 123 4567")
+
+        if st.button("Sign in", type="primary", use_container_width=True):
+            if identifier.strip():
+                st.session_state.logged_in = True
+                st.session_state.user_identifier = identifier.strip()
+                st.rerun()
+            else:
+                st.warning("Enter your email or mobile number to continue.")
+        st.caption("This is a local demo login for personal use only -- no account is created or verified.")
+    st.stop()
+
+
 @st.cache_resource(show_spinner="Building retrieval index from historical resolutions...")
 def get_retrieval_index():
     if not os.path.exists(DATA_PATH):
@@ -110,7 +201,7 @@ def get_retrieval_index():
 
 with st.sidebar:
     st.markdown("### 🤖 AmazonHelp Agent")
-    st.caption(f"Provider: **{llm_client.PROVIDER}** · Model: `{llm_client.MODEL}`")
+    st.caption(f"Signed in as {st.session_state.get('user_identifier', 'you')}")
     page = st.radio(
         "Navigate",
         ["📊 Overview", "💬 Chat with Agent", "🔍 Browse Examples",
@@ -118,11 +209,9 @@ with st.sidebar:
         label_visibility="collapsed",
     )
     st.divider()
-    st.caption(
-        "This dashboard is a convenience layer over the CLI pipeline used "
-        "for the actual Hiver take-home deliverables. See README.md for "
-        "the graded reproduction steps."
-    )
+    if st.button("Log out"):
+        st.session_state.logged_in = False
+        st.rerun()
 
 golden = load_csv_if_exists(GOLDEN_PATH)
 
@@ -168,7 +257,7 @@ elif page == "💬 Chat with Agent":
     st.caption(
         "Type a message as if you were tweeting @AmazonHelp. The agent will "
         "classify it, draft a grounded reply, and decide whether it would "
-        "auto-handle or escalate it -- live, using your configured LLM provider."
+        "auto-handle or escalate it."
     )
 
     index = get_retrieval_index()
@@ -193,9 +282,12 @@ elif page == "💬 Chat with Agent":
                     + pill(decision_label, decision_kind)
                 )
                 st.markdown(badges, unsafe_allow_html=True)
-                with st.expander("Why this decision?"):
-                    for r in meta["reasons"]:
-                        st.write(f"- {r}")
+                if meta["escalate"]:
+                    render_escalation_card(meta["specialist"], meta["reasons"])
+                else:
+                    with st.expander("Why this was auto-handled"):
+                        for r in meta["reasons"]:
+                            st.write(f"- {r}")
 
     user_input = st.chat_input("e.g. @AmazonHelp my order still hasn't arrived, it's been a week")
     if user_input:
@@ -208,6 +300,7 @@ elif page == "💬 Chat with Agent":
                 cls = classify(user_input)
                 draft = draft_reply(user_input, index, intent=cls["intent"])
                 esc = decide_escalation(user_input, cls["intent"], cls["confidence"], draft)
+                specialist = assign_specialist(user_input) if esc["escalate"] else None
             st.write(draft["reply"])
             decision_kind = "red" if esc["escalate"] else "green"
             decision_label = "🚨 ESCALATE TO HUMAN" if esc["escalate"] else "✅ AUTO-HANDLE"
@@ -218,9 +311,12 @@ elif page == "💬 Chat with Agent":
                 + pill(decision_label, decision_kind)
             )
             st.markdown(badges, unsafe_allow_html=True)
-            with st.expander("Why this decision?"):
-                for r in esc["reasons"]:
-                    st.write(f"- {r}")
+            if esc["escalate"]:
+                render_escalation_card(specialist, esc["reasons"])
+            else:
+                with st.expander("Why this was auto-handled"):
+                    for r in esc["reasons"]:
+                        st.write(f"- {r}")
 
         st.session_state.chat_history.append({
             "role": "assistant",
@@ -230,6 +326,7 @@ elif page == "💬 Chat with Agent":
                 "confidence": cls["confidence"],
                 "escalate": esc["escalate"],
                 "reasons": esc["reasons"],
+                "specialist": specialist,
             },
         })
 
@@ -273,10 +370,15 @@ elif page == "🔍 Browse Examples":
                     + pill(esc_text, "red" if esc else "green")
                 )
                 st.markdown(badges, unsafe_allow_html=True)
-                st.write(f"**Escalation reasons:** {row['escalation_reasons']}")
                 st.write(f"**Drafted reply:** {row['pred_reply']}")
                 if isinstance(row.get("reference_reply"), str) and row["reference_reply"]:
                     st.write(f"**Historical reference reply:** {row['reference_reply']}")
+                if esc:
+                    specialist = assign_specialist(str(row["customer_text"]))
+                    reasons_list = str(row["escalation_reasons"]).split("; ")
+                    render_escalation_card(specialist, reasons_list)
+                else:
+                    st.write(f"**Escalation reasons:** {row['escalation_reasons']}")
 
 elif page == "⚖️ Baseline Comparison":
     st.subheader("System comparison")
